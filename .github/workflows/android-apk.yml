@@ -1,0 +1,64 @@
+name: Build Android APK
+
+on:
+  push:
+    paths:
+      - "phoenixsuit.zip"
+      - ".github/workflows/android-apk.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Extract Android project
+        shell: bash
+        run: |
+          mkdir -p extracted
+          unzip -q phoenixsuit.zip -d extracted
+          echo "Files in archive:"
+          find extracted -maxdepth 4 -type f | head -200
+          SETTINGS_FILE="$(find extracted -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          if [ -n "$SETTINGS_FILE" ]; then
+            echo "PROJECT_DIR=$(dirname "$SETTINGS_FILE")" >> "$GITHUB_ENV"
+          else
+            BUILD_FILE="$(find extracted -type f \( -name build.gradle -o -name build.gradle.kts \) -print -quit)"
+            if [ -z "$BUILD_FILE" ]; then
+              echo "Could not find Gradle build files in phoenixsuit.zip."
+              exit 1
+            fi
+            echo "PROJECT_DIR=$(dirname "$BUILD_FILE")" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build debug APK
+        shell: bash
+        run: |
+          echo "Building project at: $PROJECT_DIR"
+          gradle -p "$PROJECT_DIR" assembleDebug --stacktrace
+
+      - name: Upload APK artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhoenixSuit-debug-apk
+          path: |
+            extracted/**/build/outputs/apk/**/*.apk
+          if-no-files-found: warn
+          retention-days: 7
