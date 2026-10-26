@@ -47,6 +47,25 @@ jobs:
             echo "PROJECT_DIR=$(dirname "$BUILD_FILE")" >> "$GITHUB_ENV"
           fi
 
+      - name: Create missing debug keystore
+        shell: bash
+        run: |
+          KEYSTORE="$PROJECT_DIR/debug.keystore"
+          if [ ! -f "$KEYSTORE" ]; then
+            echo "Expected debug keystore is missing; generating a CI-only debug keystore."
+            keytool -genkeypair -v \
+              -keystore "$KEYSTORE" \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -dname "CN=Android Debug,O=Android,C=US" \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000
+          else
+            echo "Debug keystore already exists."
+          fi
+
       - name: Build debug APK
         shell: bash
         run: |
